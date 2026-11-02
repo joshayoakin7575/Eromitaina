@@ -7,11 +7,11 @@ const HERO_IMAGE_SRC = '/src/assets/images/hero_smart_meter_1793319056512.jpg';
 export const HeroBanner: React.FC = () => {
   const [currentSlide, setCurrentSlide] = useState(0);
 
-  // Auto-advance slides every 4 seconds
+  // Auto-advance slides every 10 seconds
   useEffect(() => {
     const interval = setInterval(() => {
       setCurrentSlide((prev) => (prev + 1) % SLIDES_COUNT);
-    }, 4000);
+    }, 10000);
     return () => clearInterval(interval);
   }, []);
 
