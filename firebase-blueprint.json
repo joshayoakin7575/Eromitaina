@@ -1,0 +1,109 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Customer personal account profile, contact information and preferences",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "email": { "type": "string", "format": "email", "description": "Customer verified email" },
+        "displayName": { "type": "string", "maxLength": 100, "description": "Customer full name" },
+        "photoURL": { "type": "string", "maxLength": 500, "description": "Profile picture URL" },
+        "phone": { "type": "string", "maxLength": 20, "description": "Default contact phone for token SMS" },
+        "provider": { "type": "string", "enum": ["google.com", "microsoft.com"], "description": "Auth provider used" },
+        "createdAt": { "type": "string", "description": "Account registration timestamp" },
+        "updatedAt": { "type": "string", "description": "Last profile update timestamp" }
+      },
+      "required": ["userId", "email"]
+    },
+    "SavedMeter": {
+      "title": "SavedMeter",
+      "description": "Customer saved electricity meters with DISCO configurations",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "label": { "type": "string", "maxLength": 60, "description": "Friendly nickname (e.g. Home, Office)" },
+        "meterNumber": { "type": "string", "pattern": "^[0-9]{10,13}$", "description": "Meter or account number" },
+        "discoCode": { "type": "string", "maxLength": 16, "description": "Provider code (e.g. IKEDC)" },
+        "meterType": { "type": "string", "enum": ["prepaid", "postpaid"] },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "address": { "type": "string", "maxLength": 250 },
+        "lastVendedAmount": { "type": "number" },
+        "lastVendedDate": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "userId", "meterNumber", "discoCode", "meterType"]
+    },
+    "CustomerTransaction": {
+      "title": "CustomerTransaction",
+      "description": "Encrypted customer utility token purchase record and receipt",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string", "maxLength": 128 },
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "reference": { "type": "string", "maxLength": 64 },
+        "flwRef": { "type": "string", "maxLength": 64 },
+        "discoCode": { "type": "string", "maxLength": 16 },
+        "discoName": { "type": "string", "maxLength": 80 },
+        "meterNumber": { "type": "string", "maxLength": 20 },
+        "meterType": { "type": "string", "enum": ["prepaid", "postpaid"] },
+        "customerName": { "type": "string", "maxLength": 120 },
+        "customerAddress": { "type": "string", "maxLength": 250 },
+        "phone": { "type": "string", "maxLength": 20 },
+        "email": { "type": "string", "format": "email" },
+        "amount": { "type": "number" },
+        "energyAmount": { "type": "number" },
+        "vatAmount": { "type": "number" },
+        "fee": { "type": "number" },
+        "unitsKwh": { "type": "number" },
+        "token": { "type": "string", "maxLength": 40 },
+        "receiptNumber": { "type": "string", "maxLength": 64 },
+        "status": { "type": "string", "enum": ["successful", "pending", "failed"] },
+        "paymentMethod": { "type": "string" },
+        "timestamp": { "type": "string" }
+      },
+      "required": ["id", "userId", "reference", "meterNumber", "discoCode", "amount", "status"]
+    },
+    "CustomerPreferences": {
+      "title": "CustomerPreferences",
+      "description": "Customer payment reminder and recurring recharge plan preferences capped at 15,000 NGN",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Owner Auth UID" },
+        "reminderEnabled": { "type": "boolean" },
+        "reminderDayOfMonth": { "type": "number", "minimum": 1, "maximum": 28 },
+        "reminderEmail": { "type": "string", "format": "email" },
+        "recurringEnabled": { "type": "boolean" },
+        "recurringAmount": { "type": "number", "enum": [2500, 5000, 7500, 10000, 12500, 15000], "maximum": 15000 },
+        "recurringInterval": { "type": "string", "enum": ["weekly", "monthly"] },
+        "targetMeterNumber": { "type": "string", "maxLength": 20 },
+        "targetDiscoCode": { "type": "string", "maxLength": 16 },
+        "flwPlanId": { "type": "string", "maxLength": 64 },
+        "flwPlanStatus": { "type": "string", "enum": ["active", "cancelled", "pending"] },
+        "mandateAuthorized": { "type": "boolean" },
+        "lastReminderSent": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["userId", "reminderEnabled", "recurringEnabled", "recurringAmount", "recurringInterval"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "Private profile document accessible strictly by the authenticated customer"
+    },
+    "/users/{userId}/saved_meters/{meterId}": {
+      "schema": "SavedMeter",
+      "description": "Customer saved meters subcollection strictly isolated to the user"
+    },
+    "/users/{userId}/transactions/{txId}": {
+      "schema": "CustomerTransaction",
+      "description": "Private transaction ledger and electricity tokens strictly isolated to the user"
+    },
+    "/users/{userId}/preferences/{prefId}": {
+      "schema": "CustomerPreferences",
+      "description": "Customer notification and recurring payment settings strictly isolated to the user"
+    }
+  }
+}

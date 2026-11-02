@@ -1,0 +1,6 @@
+{
+  "name": "CaseBox Utility - Flutterwave Electricity Vending",
+  "description": "High-performance electricity token vending and utility payment gateway for all Nigerian DISCOs powered by Flutterwave Bill Payment API.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

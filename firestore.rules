@@ -1,0 +1,66 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net: Default Deny
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // Hardened Primitives
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    // Customer User Profile
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false; // Blanket enumeration of user profiles prohibited for PII protection
+      allow create: if isOwner(userId)
+                    && isValidId(userId)
+                    && request.resource.data.userId == userId;
+      allow update: if isOwner(userId)
+                    && request.resource.data.userId == userId;
+      allow delete: if isOwner(userId);
+
+      // Customer Saved Meters Subcollection
+      match /saved_meters/{meterId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && isValidId(meterId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId);
+      }
+
+      // Customer Private Transactions Subcollection
+      match /transactions/{txId} {
+        allow get, list: if isOwner(userId);
+        allow create: if isOwner(userId)
+                      && isValidId(txId)
+                      && request.resource.data.userId == userId;
+        allow update: if isOwner(userId)
+                      && request.resource.data.userId == userId;
+        allow delete: if false; // Financial and audit transactions cannot be deleted by clients
+      }
+
+      // Customer Recharge & Reminder Preferences Subcollection
+      match /preferences/{prefId} {
+        allow get, list: if isOwner(userId);
+        allow create, update: if isOwner(userId)
+                              && isValidId(prefId)
+                              && request.resource.data.userId == userId;
+        allow delete: if isOwner(userId);
+      }
+    }
+  }
+}

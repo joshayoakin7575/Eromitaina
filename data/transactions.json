@@ -1,0 +1,27 @@
+[
+  {
+    "id": "tx_1793623247250",
+    "reference": "CBX-FLW-20261102-3748",
+    "flwRef": "FLW-1793623246182-6810",
+    "discoCode": "IBEDC",
+    "discoName": "Ibadan Electricity Distribution (IBEDC)",
+    "meterNumber": "0159000621098",
+    "meterType": "prepaid",
+    "customerName": "Registered Account Holder",
+    "customerAddress": "Ibadan Electricity Distribution (IBEDC) Area Supply",
+    "phone": "08108958265",
+    "email": "customer@casebox.ng",
+    "amount": 3000,
+    "energyAmount": 2697.67,
+    "vatAmount": 202.33,
+    "fee": 100,
+    "unitsKwh": 12.88,
+    "token": "4871-4983-5100-4150-3869",
+    "resetToken": "0000-0000-0000-0000-0000",
+    "receiptNumber": "IBEDC-REC-887388",
+    "status": "successful",
+    "paymentMethod": "card",
+    "timestamp": "2026-11-02T12:40:47.250Z",
+    "debtDeduction": 0
+  }
+]
