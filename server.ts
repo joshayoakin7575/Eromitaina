@@ -93,12 +93,6 @@ let flwPublicKey = activeFlwConfig.publicKey;
 let flwSecretKey = activeFlwConfig.secretKey;
 let flwSecretHash = activeFlwConfig.secretHash;
 
-// Helper to generate a realistic 20-digit STS Prepaid Electricity Token
-function generate20DigitToken(): string {
-  const segment = () => Math.floor(1000 + Math.random() * 9000).toString();
-  return `${segment()}-${segment()}-${segment()}-${segment()}-${segment()}`;
-}
-
 // -------------------------------------------------------------
 // API Endpoints
 // -------------------------------------------------------------
@@ -133,6 +127,7 @@ app.get('/api/flw/config', (_req: Request, res: Response) => {
     data: {
       isConfigured,
       isSandbox,
+      publicKey: flwPublicKey,
       publicKeyMasked: maskedKey,
       apiBaseUrl: 'https://api.flutterwave.com/v3',
       vendingEngine: isConfigured ? 'flutterwave_direct' : 'flutterwave_sandbox_simulator'
@@ -347,7 +342,9 @@ app.post('/api/flw/vend', async (req: Request, res: Response) => {
       customerAddress,
       phone,
       email,
-      paymentMethod = 'card'
+      paymentMethod = 'card',
+      flutterwaveTransactionId,
+      flutterwaveReference
     } = req.body;
 
     const numAmount = parseFloat(amount);
@@ -378,8 +375,24 @@ app.post('/api/flw/vend', async (req: Request, res: Response) => {
     const transactionRef = `CBX-FLW-${datePrefix}-${randSuffix}`;
     const flwReference = `FLW-${Date.now()}-${Math.floor(Math.random() * 10000)}`;
 
-    let generatedToken: string | undefined = undefined;
-    let flwSuccess = false;
+    if (!flwSecretKey || !flwSecretKey.startsWith('FLWSECK')) {
+      res.status(503).json({ status: 'error', message: 'Flutterwave live payment is not configured.' });
+      return;
+    }
+    if (!flutterwaveTransactionId || !flutterwaveReference) {
+      res.status(400).json({ status: 'error', message: 'A completed Flutterwave payment is required before vending.' });
+      return;
+    }
+    const verifyResponse = await flwApiRequest(`https://api.flutterwave.com/v3/transactions/${encodeURIComponent(String(flutterwaveTransactionId))}/verify`, {
+      method: 'GET', headers: { 'Authorization': `Bearer ${flwSecretKey}`, 'Content-Type': 'application/json' }
+    });
+    const verifyJson = await verifyResponse.json();
+    const verified = verifyJson?.data;
+    if (!verifyResponse.ok || verifyJson?.status !== 'success' || !verified || verified.status !== 'successful' || verified.tx_ref !== flutterwaveReference || verified.currency !== 'NGN' || Number(verified.amount) < numAmount) {
+      res.status(409).json({ status: 'error', message: 'Flutterwave payment could not be verified for this order.' });
+      return;
+    }
+    let generatedToken: string | undefined;
 
     // If real Flutterwave API Secret Key is available, make actual live bill payment call
     if (flwSecretKey && flwSecretKey.startsWith('FLWSECK')) {
@@ -405,26 +418,22 @@ app.post('/api/flw/vend', async (req: Request, res: Response) => {
 
         const flwJson = await flwResponse.json();
         if (flwResponse.ok && flwJson.status === 'success') {
-          flwSuccess = true;
-          if (flwJson.data?.token) {
-            generatedToken = flwJson.data.token;
-          }
+          if (flwJson.data?.token) generatedToken = String(flwJson.data.token);
         }
       } catch (apiErr) {
         console.warn('Flutterwave direct API call exception:', apiErr);
       }
     }
 
-    // If token wasn't returned by direct API (or in sandbox mode), generate realistic 20-digit STS token
-    if (!generatedToken && meterType === 'prepaid') {
-      generatedToken = generate20DigitToken();
-      flwSuccess = true;
+    if (meterType === 'prepaid' && !generatedToken) {
+      res.status(502).json({ status: 'error', message: 'Flutterwave Bill Payment did not return an electricity token. No simulated token was created.' });
+      return;
     }
 
     const newTransaction: VendingTransaction = {
       id: `tx_${Date.now()}`,
       reference: transactionRef,
-      flwRef: flwReference,
+      flwRef: String(verified.flw_ref || flutterwaveReference),
       discoCode: disco.code,
       discoName: disco.name,
       meterNumber: cleanMeter,

@@ -60,43 +60,48 @@ export const FlutterwaveCheckoutModal: React.FC<FlutterwaveCheckoutModalProps> =
     setErrorMessage(null);
 
     try {
-      setProcessingStage('1. Establishing encrypted connection with payment network...');
-      await new Promise(r => setTimeout(r, 600));
-
-      setProcessingStage('2. Authorizing transaction gateway...');
-      await new Promise(r => setTimeout(r, 700));
-
-      setProcessingStage(`3. Requesting token from ${vendingData.disco.code} grid...`);
-
-      const res = await fetch('/api/flw/vend', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          meterNumber: vendingData.meterNumber,
-          discoCode: vendingData.disco.code,
-          meterType: vendingData.meterType,
-          amount: vendingData.amount,
-          customerName: vendingData.customerName,
-          customerAddress: vendingData.customerAddress,
-          phone: vendingData.phone,
-          email: vendingData.email,
-          paymentMethod
-        })
+      const configResponse = await fetch('/api/flw/config');
+      const configData = await configResponse.json();
+      const publicKey = configData?.data?.publicKey;
+      if (!publicKey || !publicKey.startsWith('FLWPUBK')) throw new Error('Flutterwave payment is not configured.');
+      const txRef = `CBX-FLW-${Date.now()}-${Math.floor(Math.random() * 100000)}`;
+      setIsProcessing(false);
+      await new Promise<void>((resolve, reject) => {
+        const open = () => {
+          const checkout = window.FlutterwaveCheckout;
+          if (!checkout) { reject(new Error('Flutterwave checkout could not load.')); return; }
+          checkout({
+            public_key: publicKey,
+            tx_ref: txRef,
+            amount: vendingData.amount,
+            currency: 'NGN',
+            payment_options: paymentMethod === 'bank_transfer' ? 'banktransfer' : paymentMethod === 'ussd' ? 'ussd' : 'card',
+            customer: { email: vendingData.email, phone_number: vendingData.phone, name: vendingData.customerName },
+            customizations: { title: 'CaseBox Utility', description: `${vendingData.disco.code} electricity token` },
+            callback: async (result: { status?: string; transaction_id?: number | string; tx_ref?: string }) => {
+              try {
+                if (result.status !== 'successful' || !result.transaction_id || result.tx_ref !== txRef) throw new Error('Flutterwave payment was not completed.');
+                setIsProcessing(true); setProcessingStage(`Requesting token from ${vendingData.disco.code} grid...`);
+                const response = await fetch('/api/flw/vend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ...vendingData, paymentMethod, flutterwaveTransactionId: result.transaction_id, flutterwaveReference: txRef }) });
+                const data = await response.json();
+                if (!response.ok || data.status !== 'success') throw new Error(data.message || 'Flutterwave Bill Payment failed.');
+                onSuccess(data.data); resolve();
+              } catch (error) { reject(error); }
+            },
+            onclose: () => reject(new Error('Flutterwave checkout was closed before payment completed.')),
+          });
+        };
+        const existing = document.querySelector('script[src="https://checkout.flutterwave.com/v3.js"]');
+        if (existing) { open(); return; }
+        const script = document.createElement('script'); script.src = 'https://checkout.flutterwave.com/v3.js'; script.onload = open; script.onerror = () => reject(new Error('Flutterwave checkout could not load.')); document.body.appendChild(script);
       });
-
-      const data = await res.json();
-      if (res.ok && data.status === 'success') {
-        setProcessingStage('4. Token generated! Preparing official receipt...');
-        await new Promise(r => setTimeout(r, 500));
-        setIsProcessing(false);
-        onSuccess(data.data);
-      } else {
-        throw new Error(data.message || 'Payment processing failed');
-      }
+      setIsProcessing(false);
     } catch (err: any) {
       setErrorMessage(err.message || 'Error processing payment. Please verify card details.');
       setIsProcessing(false);
     }
+
+declare global { interface Window { FlutterwaveCheckout?: (options: Record<string, unknown>) => void; } }
   };
 
   return (
